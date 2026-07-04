@@ -5,6 +5,8 @@ Tap the ingredients you have, hit "Sniff it out", and Fridge Cat returns 1 to 3
 recipes you can actually make right now, with what's covered, what's missing,
 and how close each one is. Part of the cat-mascot utility suite.
 
+**Live:** https://yannitan11.github.io/fridge-cat/ (auto-deploys from `main` via GitHub Pages)
+
 ## Run locally
 
 ```bash
