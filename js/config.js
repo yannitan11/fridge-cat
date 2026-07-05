@@ -7,7 +7,7 @@ export const MATCH = {
   // case we always surface the closest few so the screen is never empty.
   sparseSelectionCount: 3,
   // How many recipe cards per sniff.
-  resultsPerSniff: 3,
+  resultsPerSniff: 5,
   // "Almost there" = missing at most this many required items.
   almostMissingMax: 2,
   // Small ranking reward for recipes that clear more of the user's fridge:

@@ -342,19 +342,33 @@ function cardHtml(m) {
     </a>`;
 }
 
-function renderResults() {
+const TIME_FILTERS = [
+  { id: 'any', label: 'Any time', max: Infinity },
+  { id: 't20', label: 'Under 20 min', max: 20 },
+  { id: 't40', label: 'Under 40 min', max: 40 },
+];
+const KCAL_FILTERS = [
+  { id: 'any', label: 'Any kcal', max: Infinity },
+  { id: 'k400', label: 'Under 400', max: 400 },
+  { id: 'k600', label: 'Under 600', max: 600 },
+];
+let timeFilter = 'any';
+let kcalFilter = 'any';
+
+function filteredPool() {
   const { selectedIngredientIds, assumeStaples } = store.get();
+  const pool = matchRecipes(selectedIngredientIds, { assumeStaples });
+  const tMax = TIME_FILTERS.find((f) => f.id === timeFilter).max;
+  const kMax = KCAL_FILTERS.find((f) => f.id === kcalFilter).max;
+  return pool.filter((m) =>
+    m.recipe.timeMinutes <= tMax &&
+    (NUTRITION[m.recipe.id]?.kcal ?? 0) <= kMax);
+}
+
+function renderResults() {
+  const { selectedIngredientIds } = store.get();
   if (selectedIngredientIds.length === 0) { location.hash = '#/pantry'; return; }
   dock.hidden = true;
-
-  const pool = matchRecipes(selectedIngredientIds, { assumeStaples });
-  const start = sniffOffset % pool.length;
-  const picks = [];
-  for (let i = 0; i < Math.min(MATCH.resultsPerSniff, pool.length); i++) {
-    picks.push(pool[(start + i) % pool.length]);
-  }
-  const best = picks[0];
-  const strong = best && (best.status === 'ready' || best.status === 'almost');
 
   // Phase 1: the loading scene — cat nose-deep in the open fridge
   app.innerHTML = `
@@ -378,51 +392,94 @@ function renderResults() {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   setTimeout(() => {
     if (!document.getElementById('results-cat')) return;
-    const title = document.querySelector('.results-title');
-    const sub = document.querySelector('.results-sub');
     document.querySelector('.loading-dots')?.remove();
     document.getElementById('fridge-scene').classList.add('fridge-done');
-
-    if (strong) {
-      cat.set('found', { revertTo: 'idle' });
-      const ready = picks.filter((p) => p.status === 'ready').length;
-      title.textContent = ready > 0 ? 'Found it!' : 'So close to dinner';
-      sub.textContent = ready > 0
-        ? `You can cook ${ready === 1 ? 'this' : 'these'} right now.`
-        : 'One tiny shopping trip away.';
-    } else {
-      cat.set('shrug', { revertTo: 'idle' });
-      title.textContent = 'Hmm. Slim pickings';
-      const near = best?.missing?.length === 1
-        ? ingredientById.get(best.missing[0])?.name : null;
-      sub.textContent = near
-        ? `You are just ${near.toLowerCase()} away from ${best.recipe.name}.`
-        : 'Here is the closest thing to dinner.';
-    }
-
-    document.getElementById('results-list').innerHTML =
-      picks.map(cardHtml).join('') + `
-      <div class="results-actions">
-        <button class="sniff-again" id="sniff-again">${ICONS.nose} Sniff again</button>
-      </div>`;
-
-    document.getElementById('sniff-again').addEventListener('click', () => {
-      sniffOffset += MATCH.resultsPerSniff;
-      renderResults();
-    });
-
-    // missing-ingredient chips inside cards: toggle shopping list, don't navigate
-    app.querySelectorAll('.miss[data-shop]').forEach((el) => {
-      el.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const ingId = el.dataset.shop;
-        const name = ingredientById.get(ingId)?.name ?? ingId;
-        const added = store.toggleShopping(ingId, name);
-        el.classList.toggle('in-list', added);
-      });
-    });
+    revealResults(cat, true);
   }, reduce ? 150 : TIMING.sniffMs);
+}
+
+// Phase 2: ranked cards + time/kcal filters. Re-runs instantly on filter
+// taps (no re-sniff); `react` animates the cat only on the first reveal.
+function revealResults(cat, react) {
+  const list = document.getElementById('results-list');
+  const title = document.querySelector('.results-title');
+  const sub = document.querySelector('.results-sub');
+  if (!list) return;
+
+  const pool = filteredPool();
+  const picks = [];
+  if (pool.length > 0) {
+    const start = sniffOffset % pool.length;
+    for (let i = 0; i < Math.min(MATCH.resultsPerSniff, pool.length); i++) {
+      picks.push(pool[(start + i) % pool.length]);
+    }
+  }
+  const best = picks[0];
+  const strong = best && (best.status === 'ready' || best.status === 'almost');
+  const ready = picks.filter((p) => p.status === 'ready').length;
+
+  if (picks.length === 0) {
+    if (react) cat.set('shrug', { revertTo: 'idle' });
+    title.textContent = 'Nothing fits those filters';
+    sub.textContent = 'Loosen one, or sniff again later.';
+  } else if (strong) {
+    if (react) cat.set('found', { revertTo: 'idle' });
+    title.textContent = ready > 0 ? 'Found it!' : 'So close to dinner';
+    sub.textContent = ready > 0
+      ? `You can cook ${ready === 1 ? 'this' : 'these'} right now.`
+      : 'One tiny shopping trip away.';
+  } else {
+    if (react) cat.set('shrug', { revertTo: 'idle' });
+    title.textContent = 'Hmm. Slim pickings';
+    const near = best?.missing?.length === 1
+      ? ingredientById.get(best.missing[0])?.name : null;
+    sub.textContent = near
+      ? `You are just ${near.toLowerCase()} away from ${best.recipe.name}.`
+      : 'Here is the closest thing to dinner.';
+  }
+
+  const filterPill = (f, group, active) => `
+    <button class="chip filter-chip" data-${group}="${f.id}" aria-pressed="${f.id === active}">${f.label}</button>`;
+
+  list.innerHTML = `
+    <div class="results-filters">
+      <div class="chip-grid">${TIME_FILTERS.map((f) => filterPill(f, 'time', timeFilter)).join('')}</div>
+      <div class="chip-grid">${KCAL_FILTERS.map((f) => filterPill(f, 'kcal', kcalFilter)).join('')}</div>
+    </div>
+    ${picks.map(cardHtml).join('')}
+    <div class="results-actions">
+      <button class="sniff-again" id="sniff-again">${ICONS.nose} Sniff again</button>
+    </div>`;
+
+  list.querySelectorAll('[data-time]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      timeFilter = btn.dataset.time;
+      sniffOffset = 0;
+      revealResults(cat, false);
+    }));
+  list.querySelectorAll('[data-kcal]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      kcalFilter = btn.dataset.kcal;
+      sniffOffset = 0;
+      revealResults(cat, false);
+    }));
+
+  document.getElementById('sniff-again').addEventListener('click', () => {
+    sniffOffset += MATCH.resultsPerSniff;
+    revealResults(cat, false);
+  });
+
+  // missing-ingredient chips inside cards: toggle shopping list, don't navigate
+  list.querySelectorAll('.miss[data-shop]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const ingId = el.dataset.shop;
+      const name = ingredientById.get(ingId)?.name ?? ingId;
+      const added = store.toggleShopping(ingId, name);
+      el.classList.toggle('in-list', added);
+    });
+  });
 }
 
 // ---------- recipe detail ----------
