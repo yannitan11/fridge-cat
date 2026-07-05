@@ -31,6 +31,7 @@ const ICONS = {
   heartFill: '<svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17S3 12.5 3 7.8C3 5.2 5 3.5 7.2 3.5c1.2 0 2.2.6 2.8 1.6.6-1 1.6-1.6 2.8-1.6C15 3.5 17 5.2 17 7.8 17 12.5 10 17 10 17Z" fill="currentColor"/></svg>',
   cart: '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 2h2l1.8 8.5h7.2l1.6-6H4.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="13.5" r="1.2" fill="currentColor"/><circle cx="11.5" cy="13.5" r="1.2" fill="currentColor"/></svg>',
   book: '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3.5C6.5 2 4 2 2 2.7V13c2-.7 4.5-.7 6 .8 1.5-1.5 4-1.5 6-.8V2.7C12 2 9.5 2 8 3.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 3.5V13.8" stroke="currentColor" stroke-width="1.6"/></svg>',
+  sort: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M5 2.5v11M5 13.5 2.5 11M5 13.5 7.5 11M11 13.5v-11M11 2.5 8.5 5M11 2.5l2.5 2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 
 const LOGO_FACE = `
@@ -352,17 +353,42 @@ const KCAL_FILTERS = [
   { id: 'k400', label: 'Under 400 kcal', max: 400 },
   { id: 'k600', label: 'Under 600 kcal', max: 600 },
 ];
+const MATCH_FILTERS = [
+  { id: 'any',    label: 'Any match' },
+  { id: 'ready',  label: 'Ready to cook' },
+  { id: 'almost', label: 'Missing 1 or 2' },
+];
+const SORTS = [
+  { id: 'best',        label: 'Best match' },
+  { id: 'ingredients', label: 'Fewest ingredients' },
+  { id: 'missing',     label: 'Fewest missing' },
+];
 let timeFilter = 'any';
 let kcalFilter = 'any';
+let matchFilter = 'any';
+let sortBy = 'best';
 
 function filteredPool() {
   const { selectedIngredientIds, assumeStaples } = store.get();
   const pool = matchRecipes(selectedIngredientIds, { assumeStaples });
   const tMax = TIME_FILTERS.find((f) => f.id === timeFilter).max;
   const kMax = KCAL_FILTERS.find((f) => f.id === kcalFilter).max;
-  return pool.filter((m) =>
-    m.recipe.timeMinutes <= tMax &&
-    (NUTRITION[m.recipe.id]?.kcal ?? 0) <= kMax);
+  const out = pool.filter((m) => {
+    if (m.recipe.timeMinutes > tMax) return false;
+    if ((NUTRITION[m.recipe.id]?.kcal ?? 0) > kMax) return false;
+    if (matchFilter === 'ready' && m.status !== 'ready') return false;
+    if (matchFilter === 'almost' && m.status !== 'ready' && m.status !== 'almost') return false;
+    return true;
+  });
+  // pool arrives sorted by match score; re-sort only for the other modes
+  if (sortBy === 'ingredients') {
+    out.sort((a, b) =>
+      a.recipe.requiredIngredientIds.length - b.recipe.requiredIngredientIds.length ||
+      b.score - a.score);
+  } else if (sortBy === 'missing') {
+    out.sort((a, b) => a.missing.length - b.missing.length || b.score - a.score);
+  }
+  return out;
 }
 
 function renderResults() {
@@ -438,10 +464,10 @@ function revealResults(cat, react) {
       : 'Here is the closest thing to dinner.';
   }
 
-  const dropdown = (id, icon, filters, active) => `
-    <label class="select-pill ${active !== 'any' ? 'active' : ''}">
+  const dropdown = (id, icon, filters, active, label, activeWhen = 'any') => `
+    <label class="select-pill ${active !== activeWhen ? 'active' : ''}">
       ${icon}
-      <select id="${id}" aria-label="${id === 'filter-time' ? 'Filter by time' : 'Filter by calories'}">
+      <select id="${id}" aria-label="${label}">
         ${filters.map((f) => `<option value="${f.id}" ${f.id === active ? 'selected' : ''}>${f.label}</option>`).join('')}
       </select>
       <svg class="select-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
@@ -451,24 +477,26 @@ function revealResults(cat, react) {
 
   list.innerHTML = `
     <div class="results-filters">
-      ${dropdown('filter-time', ICONS.clock, TIME_FILTERS, timeFilter)}
-      ${dropdown('filter-kcal', ICONS.bolt, KCAL_FILTERS, kcalFilter)}
+      ${dropdown('filter-match', ICONS.checkSmall, MATCH_FILTERS, matchFilter, 'Filter by match')}
+      ${dropdown('filter-time', ICONS.clock, TIME_FILTERS, timeFilter, 'Filter by time')}
+      ${dropdown('filter-kcal', ICONS.bolt, KCAL_FILTERS, kcalFilter, 'Filter by calories')}
+      ${dropdown('filter-sort', ICONS.sort, SORTS, sortBy, 'Sort results', 'best')}
     </div>
     ${picks.map(cardHtml).join('')}
     <div class="results-actions">
       <button class="sniff-again" id="sniff-again">${ICONS.nose} Sniff again</button>
     </div>`;
 
-  document.getElementById('filter-time').addEventListener('change', (e) => {
-    timeFilter = e.target.value;
-    sniffOffset = 0;
-    revealResults(cat, false);
-  });
-  document.getElementById('filter-kcal').addEventListener('change', (e) => {
-    kcalFilter = e.target.value;
-    sniffOffset = 0;
-    revealResults(cat, false);
-  });
+  const onFilterChange = (id, apply) =>
+    document.getElementById(id).addEventListener('change', (e) => {
+      apply(e.target.value);
+      sniffOffset = 0;
+      revealResults(cat, false);
+    });
+  onFilterChange('filter-match', (v) => { matchFilter = v; });
+  onFilterChange('filter-time', (v) => { timeFilter = v; });
+  onFilterChange('filter-kcal', (v) => { kcalFilter = v; });
+  onFilterChange('filter-sort', (v) => { sortBy = v; });
 
   document.getElementById('sniff-again').addEventListener('click', () => {
     sniffOffset += MATCH.resultsPerSniff;
