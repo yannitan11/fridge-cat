@@ -3,6 +3,18 @@
 // each recipe's servings); optional ingredients are to taste.
 // `kcal` is an estimate PER SERVING for the required ingredients cooked
 // as written, rounded to the nearest 10.
+// Scale every number inside an amount string ("1 (150 g)" -> "2 (300 g)").
+// Word amounts ("half", "a handful") pass through untouched.
+export function scaleAmount(str, factor) {
+  if (factor === 1) return str;
+  return str.replace(/\d+(?:\.\d+)?/g, (n) => {
+    const v = parseFloat(n) * factor;
+    if (v >= 10) return String(Math.round(v));
+    const r = Math.round(v * 10) / 10;
+    return String(Number.isInteger(r) ? r : r.toFixed(1));
+  });
+}
+
 export const NUTRITION = {
   'garlic-butter-pasta':    { kcal: 640, amounts: { pasta: '200 g', butter: '40 g', garlic: '3 cloves', parmesan: '40 g' } },
   'aglio-e-olio':           { kcal: 520, amounts: { pasta: '200 g', garlic: '4 cloves', 'chili-flakes': '1 tsp' } },

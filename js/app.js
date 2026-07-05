@@ -5,7 +5,7 @@ import { matchRecipes, ingredientById, normalize } from './match.js';
 import { store } from './store.js';
 import { createCat } from './cat.js';
 import { dishArt } from './food-art.js';
-import { NUTRITION } from './nutrition.js';
+import { NUTRITION, scaleAmount } from './nutrition.js';
 import { photos, fileToDataUrl } from './photos.js';
 
 const app = document.getElementById('app');
@@ -27,6 +27,10 @@ const ICONS = {
   search: '<svg width="17" height="17" viewBox="0 0 18 18" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.8"/><path d="m12.5 12.5 3 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
   nose: '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M6 8h8l-4 5Z" fill="currentColor"/><path d="M3 5c2-2.5 4-2 4-2M17 5c-2-2.5-4-2-4-2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   cross: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  heart: '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 17S3 12.5 3 7.8C3 5.2 5 3.5 7.2 3.5c1.2 0 2.2.6 2.8 1.6.6-1 1.6-1.6 2.8-1.6C15 3.5 17 5.2 17 7.8 17 12.5 10 17 10 17Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>',
+  heartFill: '<svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 17S3 12.5 3 7.8C3 5.2 5 3.5 7.2 3.5c1.2 0 2.2.6 2.8 1.6.6-1 1.6-1.6 2.8-1.6C15 3.5 17 5.2 17 7.8 17 12.5 10 17 10 17Z" fill="currentColor"/></svg>',
+  cart: '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M1.5 2h2l1.8 8.5h7.2l1.6-6H4.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="13.5" r="1.2" fill="currentColor"/><circle cx="11.5" cy="13.5" r="1.2" fill="currentColor"/></svg>',
+  book: '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 3.5C6.5 2 4 2 2 2.7V13c2-.7 4.5-.7 6 .8 1.5-1.5 4-1.5 6-.8V2.7C12 2 9.5 2 8 3.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 3.5V13.8" stroke="currentColor" stroke-width="1.6"/></svg>',
 };
 
 const LOGO_FACE = `
@@ -104,8 +108,9 @@ const difficultyLabel = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
 
 function renderHome() {
   dock.hidden = true;
-  const { makes } = store.get();
+  const { makes, shopping } = store.get();
   const recent = makes.slice(0, 3);
+  const toBuy = shopping.filter((s) => !s.done).length;
 
   const recentHtml = recent.length === 0 ? '' : `
     <section class="home-recent">
@@ -132,7 +137,11 @@ function renderHome() {
       <p class="home-tag">Tap what's in your fridge. The cat finds dinner.</p>
       <div class="home-actions">
         <a class="btn-primary" href="#/pantry">${ICONS.nose} Open the fridge</a>
-        <a class="btn-outline" href="#/log">Kitchen log${makes.length ? ` (${makes.length})` : ''}</a>
+        <div class="home-links">
+          <a class="btn-outline small" href="#/cookbook">${ICONS.book} Cookbook</a>
+          <a class="btn-outline small" href="#/log">Log${makes.length ? ` (${makes.length})` : ''}</a>
+          <a class="btn-outline small" href="#/shopping">${ICONS.cart} List${toBuy ? ` (${toBuy})` : ''}</a>
+        </div>
       </div>
     </div>
     ${recentHtml}`;
@@ -300,14 +309,19 @@ function renderPantry() {
 
 function cardHtml(m) {
   const req = m.recipe.requiredIngredientIds.length;
-  const missNames = m.missing.map((id) => (ingredientById.get(id)?.name ?? id).toLowerCase());
   const kcal = NUTRITION[m.recipe.id]?.kcal;
+  const inList = new Set(store.get().shopping.map((s) => s.id));
   const badge = m.status === 'ready'
     ? `<span class="match-badge ready">Ready to cook</span>`
     : `<span class="match-badge almost">You have ${m.ownedRequired}/${req}</span>`;
   const missingLine = m.missing.length === 0
     ? `<p class="card-missing">Everything is in your fridge already.</p>`
-    : `<p class="card-missing">Just missing ${missNames.map((n) => `<span class="miss">${esc(n)}</span>`).join(' and ')}.</p>`;
+    : `<p class="card-missing">Just missing ${m.missing.map((id) => {
+        const name = (ingredientById.get(id)?.name ?? id).toLowerCase();
+        return `<span class="miss ${inList.has(id) ? 'in-list' : ''}" data-shop="${id}"
+                 role="button" tabindex="0"
+                 title="Tap to add to your shopping list">${esc(name)}</span>`;
+      }).join(' and ')}.</p>`;
   return `
     <a class="recipe-card reveal" href="#/recipe/${m.recipe.id}">
       <div class="card-grid">
@@ -396,6 +410,18 @@ function renderResults() {
       sniffOffset += MATCH.resultsPerSniff;
       renderResults();
     });
+
+    // missing-ingredient chips inside cards: toggle shopping list, don't navigate
+    app.querySelectorAll('.miss[data-shop]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const ingId = el.dataset.shop;
+        const name = ingredientById.get(ingId)?.name ?? ingId;
+        const added = store.toggleShopping(ingId, name);
+        el.classList.toggle('in-list', added);
+      });
+    });
   }, reduce ? 150 : TIMING.sniffMs);
 }
 
@@ -412,22 +438,39 @@ function renderRecipe(id) {
     for (const ing of INGREDIENTS) if (ing.isStaple) owned.add(ing.id);
   }
   const info = NUTRITION[recipe.id];
+  const { favoriteIds, shopping } = store.get();
+  const inList = new Set(shopping.map((s) => s.id));
+  const isFav = favoriteIds.includes(recipe.id);
+  const cooked = store.timesMade(recipe.id);
+  let servings = recipe.servings;
 
   const pill = (ingId, optional = false) => {
     const ing = ingredientById.get(ingId);
     const has = owned.has(ingId);
     const amt = !optional && info?.amounts?.[ingId];
+    const amtSpan = amt ? `<span class="amt" data-base="${esc(amt)}">${esc(amt)}</span>` : '';
+    if (!has && !optional) {
+      return `
+        <li class="ing-wrap"><button class="ing-pill missing ${inList.has(ingId) ? 'listed' : ''}"
+            data-shop="${ingId}" aria-pressed="${inList.has(ingId)}">
+          ${esc(ing?.name ?? ingId)}${amtSpan}<span class="shop-state"></span>
+        </button></li>`;
+    }
     return `
       <li class="ing-pill ${has ? 'owned' : 'missing'} ${optional ? 'optional' : ''}">
-        ${has ? ICONS.checkSmall : ''}${esc(ing?.name ?? ingId)}${amt ? `<span class="amt">${esc(amt)}</span>` : ''}${optional ? ' (optional)' : ''}
+        ${has ? ICONS.checkSmall : ''}${esc(ing?.name ?? ingId)}${amtSpan}${optional ? ' (optional)' : ''}
       </li>`;
   };
 
   app.innerHTML = `
     <div class="screen-head">
-      <a class="back-btn" href="#/results">${ICONS.back} Back</a>
+      <button class="back-btn" id="detail-back">${ICONS.back} Back</button>
     </div>
     <article class="detail-card">
+      <button class="fav-btn ${isFav ? 'on' : ''}" id="fav-btn"
+              aria-label="${isFav ? 'Remove from' : 'Add to'} favorites" aria-pressed="${isFav}">
+        ${isFav ? ICONS.heartFill : ICONS.heart}
+      </button>
       <div class="detail-head">
         <div class="dish-hero">${dishArt(recipe.id)}</div>
         <div>
@@ -435,12 +478,19 @@ function renderRecipe(id) {
           <div class="detail-meta">
             <span>${ICONS.clock} ${recipe.timeMinutes} min</span>
             <span>${ICONS.flame} ${difficultyLabel[recipe.difficulty]}</span>
-            <span>${ICONS.bowl} Serves ${recipe.servings}</span>
             ${info ? `<span>${ICONS.bolt} ~${info.kcal} kcal / serving</span>` : ''}
           </div>
+          ${cooked > 0 ? `<p class="made-count">You have made this ${cooked === 1 ? 'once' : cooked + ' times'}.</p>` : ''}
         </div>
       </div>
-      <h3 class="detail-section">Ingredients</h3>
+      <div class="section-row">
+        <h3 class="detail-section">Ingredients</h3>
+        <div class="stepper" role="group" aria-label="Servings">
+          <button class="step-btn" id="serv-minus" aria-label="Fewer servings">&minus;</button>
+          <span class="step-label" id="serv-label">${servings} serving${servings === 1 ? '' : 's'}</span>
+          <button class="step-btn" id="serv-plus" aria-label="More servings">+</button>
+        </div>
+      </div>
       <ul class="ing-list">
         ${recipe.requiredIngredientIds.map((i) => pill(i)).join('')}
         ${recipe.optionalIngredientIds.map((i) => pill(i, true)).join('')}
@@ -458,6 +508,45 @@ function renderRecipe(id) {
         <div class="photo-preview" id="photo-preview" hidden></div>
       </div>
     </article>`;
+
+  document.getElementById('detail-back').addEventListener('click', () => {
+    if (history.length > 1) history.back();
+    else location.hash = '#/home';
+  });
+
+  document.getElementById('fav-btn').addEventListener('click', (e) => {
+    const on = store.toggleFavorite(recipe.id);
+    e.currentTarget.classList.toggle('on', on);
+    e.currentTarget.setAttribute('aria-pressed', on);
+    e.currentTarget.innerHTML = on ? ICONS.heartFill : ICONS.heart;
+  });
+
+  // servings stepper: rescale every amount from its base string
+  const applyServings = () => {
+    document.getElementById('serv-label').textContent =
+      `${servings} serving${servings === 1 ? '' : 's'}`;
+    const factor = servings / recipe.servings;
+    app.querySelectorAll('.amt[data-base]').forEach((el) => {
+      el.textContent = scaleAmount(el.dataset.base, factor);
+    });
+  };
+  document.getElementById('serv-minus').addEventListener('click', () => {
+    if (servings > 1) { servings -= 1; applyServings(); }
+  });
+  document.getElementById('serv-plus').addEventListener('click', () => {
+    if (servings < 8) { servings += 1; applyServings(); }
+  });
+
+  // missing required ingredients: tap to toggle on the shopping list
+  app.querySelectorAll('[data-shop]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const ingId = btn.dataset.shop;
+      const name = ingredientById.get(ingId)?.name ?? ingId;
+      const added = store.toggleShopping(ingId, name);
+      btn.classList.toggle('listed', added);
+      btn.setAttribute('aria-pressed', added);
+    });
+  });
 
   let makeEntry = null;
   document.getElementById('made-btn').addEventListener('click', (e) => {
@@ -573,6 +662,186 @@ function renderLog() {
   });
 }
 
+// ---------- welcome (first run) ----------
+
+const SLIDES = [
+  {
+    title: 'Tap what you have',
+    body: 'No accounts, no meal plans. Just tell the cat what is in your fridge.',
+    script: 'the whole fridge, chip by chip',
+  },
+  {
+    title: 'The cat finds dinner',
+    body: 'A quick sniff turns your ingredients into 1 to 3 recipes you can cook right now.',
+    script: 'trust the nose',
+  },
+  {
+    title: 'Cook it. Log it.',
+    body: 'Every meal you make lands in your kitchen log, with a photo if you are proud of it.',
+    script: 'chef’s kiss',
+  },
+];
+
+function renderWelcome() {
+  dock.hidden = true;
+  let step = 0;
+
+  function draw() {
+    const s = SLIDES[step];
+    const last = step === SLIDES.length - 1;
+    app.innerHTML = `
+      <div class="welcome">
+        <div class="welcome-art">
+          ${step === 1 ? FRIDGE_SVG : `<div class="cat welcome-cat" id="welcome-cat"></div>`}
+        </div>
+        <p class="welcome-script">${s.script}</p>
+        <h1 class="welcome-title">${s.title}</h1>
+        <p class="welcome-body">${s.body}</p>
+        <div class="welcome-dots" aria-hidden="true">
+          ${SLIDES.map((_, i) => `<i class="${i === step ? 'on' : ''}"></i>`).join('')}
+        </div>
+        <div class="welcome-actions">
+          <button class="welcome-skip" id="welcome-skip">Skip</button>
+          <button class="btn-primary" id="welcome-next">${last ? 'Open the fridge' : 'Next'}</button>
+        </div>
+      </div>`;
+
+    const catEl = document.getElementById('welcome-cat');
+    if (catEl) trackCat(catEl).set(step === 2 ? 'kiss' : 'idle');
+
+    const finish = () => { store.setOnboarded(); location.hash = '#/home'; };
+    document.getElementById('welcome-skip').addEventListener('click', finish);
+    document.getElementById('welcome-next').addEventListener('click', () => {
+      if (last) finish();
+      else { step += 1; draw(); }
+    });
+  }
+  draw();
+}
+
+// ---------- cookbook ----------
+
+const COOKBOOK_FILTERS = [
+  { id: 'all',       label: 'All',       test: () => true },
+  { id: 'faves',     label: 'Faves',     test: (r, favs) => favs.includes(r.id) },
+  { id: 'veggie',    label: 'Veggie',    test: (r) => r.tags.includes('vegetarian') || r.tags.includes('vegan') },
+  { id: 'quick',     label: 'Quick',     test: (r) => r.timeMinutes <= 20 },
+  { id: 'breakfast', label: 'Breakfast', test: (r) => r.tags.includes('breakfast') },
+  { id: 'soup',      label: 'Soups',     test: (r) => r.tags.includes('soup') },
+  { id: 'one-pan',   label: 'One-pan',   test: (r) => r.tags.includes('one-pan') },
+  { id: 'dessert',   label: 'Sweet',     test: (r) => r.tags.includes('dessert') },
+];
+
+let cookbookFilter = 'all';
+
+function renderCookbook() {
+  dock.hidden = true;
+  const { favoriteIds } = store.get();
+  const filter = COOKBOOK_FILTERS.find((f) => f.id === cookbookFilter) ?? COOKBOOK_FILTERS[0];
+  const list = RECIPES.filter((r) => filter.test(r, favoriteIds))
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  app.innerHTML = `
+    <div class="screen-head">
+      <a class="back-btn" href="#/home">${ICONS.back} Home</a>
+    </div>
+    <h1 class="page-title">Cookbook</h1>
+    <p class="page-sub">${list.length} recipe${list.length === 1 ? '' : 's'} the cat knows.</p>
+    <div class="chip-grid filter-row">
+      ${COOKBOOK_FILTERS.map((f) => `
+        <button class="chip" data-filter="${f.id}" aria-pressed="${f.id === cookbookFilter}">${f.label}</button>`).join('')}
+    </div>
+    ${list.length === 0
+      ? `<p class="no-hits">Nothing hearted yet. Tap the heart on any recipe.</p>`
+      : list.map((r) => {
+          const kcal = NUTRITION[r.id]?.kcal;
+          const fav = favoriteIds.includes(r.id);
+          return `
+            <a class="log-row" href="#/recipe/${r.id}">
+              <div class="log-thumb">${dishArt(r.id)}</div>
+              <div class="log-main">
+                <strong>${esc(r.name)}</strong>
+                <span>${r.timeMinutes} min${kcal ? ` &middot; ~${kcal} kcal` : ''}</span>
+              </div>
+              <button class="fav-toggle ${fav ? 'on' : ''}" data-fav="${r.id}"
+                      aria-label="${fav ? 'Remove from' : 'Add to'} favorites" aria-pressed="${fav}">
+                ${fav ? ICONS.heartFill : ICONS.heart}
+              </button>
+            </a>`;
+        }).join('')}`;
+
+  app.querySelectorAll('[data-filter]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      cookbookFilter = btn.dataset.filter;
+      renderCookbook();
+    });
+  });
+
+  app.querySelectorAll('[data-fav]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      store.toggleFavorite(btn.dataset.fav);
+      renderCookbook();
+    });
+  });
+}
+
+// ---------- shopping list ----------
+
+function renderShopping() {
+  dock.hidden = true;
+  const { shopping } = store.get();
+  const toBuy = shopping.filter((s) => !s.done).length;
+  const anyDone = shopping.some((s) => s.done);
+
+  if (shopping.length === 0) {
+    app.innerHTML = `
+      <div class="screen-head">
+        <a class="back-btn" href="#/home">${ICONS.back} Home</a>
+      </div>
+      <div class="results-stage">
+        <div class="cat" id="shop-cat" style="width:150px;margin:20px auto 0"></div>
+        <h2 class="results-title">Shopping list</h2>
+        <p class="results-sub">Empty. Tap a missing ingredient on any recipe to add it here.</p>
+        <div class="results-actions">
+          <a class="btn-primary" href="#/pantry">${ICONS.nose} Open the fridge</a>
+        </div>
+      </div>`;
+    trackCat(document.getElementById('shop-cat')).set('idle');
+    return;
+  }
+
+  app.innerHTML = `
+    <div class="screen-head">
+      <a class="back-btn" href="#/home">${ICONS.back} Home</a>
+    </div>
+    <h1 class="page-title">Shopping list</h1>
+    <p class="page-sub">${toBuy === 0 ? 'All grabbed. Go cook!' : `${toBuy} thing${toBuy === 1 ? '' : 's'} to grab.`}</p>
+    ${shopping.map((s) => `
+      <div class="shop-row ${s.done ? 'done' : ''}">
+        <button class="shop-check" data-check="${s.id}" role="checkbox" aria-checked="${s.done}"
+                aria-label="${esc(s.name)}">${s.done ? ICONS.checkSmall : ''}</button>
+        <span class="shop-name">${esc(s.name)}</span>
+        <button class="log-remove" data-unshop="${s.id}" aria-label="Remove ${esc(s.name)}">${ICONS.cross}</button>
+      </div>`).join('')}
+    ${anyDone ? `<div class="results-actions"><button class="sniff-again" id="clear-done">Clear checked</button></div>` : ''}`;
+
+  app.querySelectorAll('[data-check]').forEach((btn) =>
+    btn.addEventListener('click', () => { store.toggleShoppingDone(btn.dataset.check); renderShopping(); }));
+  app.querySelectorAll('[data-unshop]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const item = store.get().shopping.find((s) => s.id === btn.dataset.unshop);
+      if (item) store.toggleShopping(item.id, item.name);
+      renderShopping();
+    }));
+  document.getElementById('clear-done')?.addEventListener('click', () => {
+    store.clearShoppingDone();
+    renderShopping();
+  });
+}
+
 // ---------- router ----------
 
 function route() {
@@ -580,10 +849,17 @@ function route() {
   window.scrollTo(0, 0);
   for (const c of cats.splice(0)) c.destroy();
   dockCat?.destroy(); dockCat = null;
+  if (!store.get().onboarded && hash !== '#/welcome') {
+    location.hash = '#/welcome';
+    return;
+  }
   const recipeMatch = hash.match(/^#\/recipe\/(.+)$/);
   if (recipeMatch) return renderRecipe(recipeMatch[1]);
+  if (hash === '#/welcome') return renderWelcome();
   if (hash === '#/results') return renderResults();
   if (hash === '#/log') return renderLog();
+  if (hash === '#/cookbook') return renderCookbook();
+  if (hash === '#/shopping') return renderShopping();
   if (hash === '#/pantry') { searchQuery = ''; return renderPantry(); }
   renderHome();
 }

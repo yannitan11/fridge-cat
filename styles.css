@@ -1062,6 +1062,262 @@ button { font-family: inherit; cursor: pointer; }
 
 .log-day { margin-bottom: 6px; }
 
+/* ---------- welcome (first run) ---------- */
+
+.welcome {
+  text-align: center;
+  padding: 40px 10px 20px;
+  min-height: 80dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.welcome-art {
+  height: 200px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.welcome-cat { width: 190px; }
+
+.welcome-art .fridge-svg { position: static; width: 150px; }
+
+.welcome-script {
+  font-family: var(--font-script);
+  font-size: 21px;
+  color: var(--accent);
+  margin: 18px 0 2px;
+}
+
+.welcome-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 30px;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  margin: 0 0 10px;
+}
+
+.welcome-body {
+  font-size: 15.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 340px;
+  margin: 0 auto 22px;
+}
+
+.welcome-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 26px;
+}
+
+.welcome-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line);
+  transition: background 0.2s ease, width 0.2s ease;
+}
+
+.welcome-dots i.on { background: var(--accent); width: 22px; }
+
+.welcome-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.welcome-actions .btn-primary { min-width: 180px; }
+
+.welcome-skip {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  padding: 12px 8px;
+}
+
+.welcome-skip:hover { color: var(--accent); }
+
+/* ---------- home quick links ---------- */
+
+.home-links {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn-outline.small {
+  min-width: 0;
+  padding: 11px 18px;
+  font-size: 14px;
+}
+
+/* ---------- cookbook ---------- */
+
+.filter-row { margin: 6px 0 18px; }
+
+.fav-toggle {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px;
+  border-radius: 999px;
+}
+
+.fav-toggle.on, .fav-toggle:hover { color: var(--accent); }
+
+/* ---------- recipe detail: favorite, servings, shoppable pills ---------- */
+
+.detail-card { position: relative; }
+
+.fav-btn {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  border: 1.5px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  transition: color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.fav-btn:hover { border-color: var(--accent); color: var(--accent); }
+.fav-btn:active { transform: scale(0.92); }
+.fav-btn.on { color: var(--accent); border-color: var(--accent); }
+
+.detail-head { padding-right: 46px; }
+
+.made-count {
+  font-family: var(--font-script);
+  font-size: 18px;
+  color: var(--accent);
+  margin: 6px 0 0;
+}
+
+.section-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 3px;
+}
+
+.step-btn {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  font-size: 17px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
+
+.step-btn:hover { background: var(--accent-soft); color: var(--accent); }
+
+.step-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  min-width: 86px;
+  text-align: center;
+}
+
+.ing-wrap { display: contents; }
+
+button.ing-pill {
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+button.ing-pill .shop-state::before {
+  content: "+ list";
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+button.ing-pill.listed { background: var(--accent); border-style: solid; color: var(--accent-ink); }
+button.ing-pill.listed .amt { color: inherit; opacity: 0.8; }
+button.ing-pill.listed .shop-state::before { content: "listed ✓"; }
+
+/* missing chips inside result cards */
+.miss[data-shop] { cursor: pointer; }
+
+.miss[data-shop]::after {
+  content: " +";
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.miss[data-shop]:hover { text-decoration: underline; }
+.miss[data-shop].in-list::after { content: " ✓"; opacity: 1; }
+
+/* ---------- shopping list ---------- */
+
+.shop-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 18px;
+  padding: 12px 14px;
+  margin-bottom: 9px;
+}
+
+.shop-check {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent-ink);
+  display: grid;
+  place-items: center;
+}
+
+.shop-row.done .shop-check { background: var(--accent); border-color: var(--accent); }
+
+.shop-name {
+  flex: 1;
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.shop-row.done .shop-name {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
 /* ---------- small screens ---------- */
 
 @media (max-width: 480px) {

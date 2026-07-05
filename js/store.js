@@ -8,6 +8,9 @@ const defaults = () => ({
   customIngredients: [],   // {id, name} added by the user, category 'other'
   assumeStaples: true,
   makes: [],               // kitchen log: {id, recipeId, date ISO, hasPhoto}, newest first
+  favoriteIds: [],         // hearted recipe ids
+  shopping: [],            // {id (ingredient id), name, done}
+  onboarded: false,        // welcome slides seen
 });
 
 let state = load();
@@ -101,6 +104,53 @@ export const store = {
 
   removeMake(makeId) {
     state = { ...state, makes: state.makes.filter((m) => m.id !== makeId) };
+    emit();
+  },
+
+  timesMade(recipeId) {
+    return state.makes.filter((m) => m.recipeId === recipeId).length;
+  },
+
+  toggleFavorite(recipeId) {
+    const has = state.favoriteIds.includes(recipeId);
+    state = {
+      ...state,
+      favoriteIds: has
+        ? state.favoriteIds.filter((id) => id !== recipeId)
+        : [recipeId, ...state.favoriteIds],
+    };
+    emit();
+    return !has;
+  },
+
+  // Shopping list: toggle an ingredient on/off the list by id.
+  toggleShopping(ingId, name) {
+    const has = state.shopping.some((s) => s.id === ingId);
+    state = {
+      ...state,
+      shopping: has
+        ? state.shopping.filter((s) => s.id !== ingId)
+        : [...state.shopping, { id: ingId, name, done: false }],
+    };
+    emit();
+    return !has;
+  },
+
+  toggleShoppingDone(ingId) {
+    state = {
+      ...state,
+      shopping: state.shopping.map((s) => (s.id === ingId ? { ...s, done: !s.done } : s)),
+    };
+    emit();
+  },
+
+  clearShoppingDone() {
+    state = { ...state, shopping: state.shopping.filter((s) => !s.done) };
+    emit();
+  },
+
+  setOnboarded() {
+    state = { ...state, onboarded: true };
     emit();
   },
 };
