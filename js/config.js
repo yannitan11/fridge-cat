@@ -13,6 +13,17 @@ export const MATCH = {
   // Small ranking reward for recipes that clear more of the user's fridge:
   // fraction of the user's selected items the recipe uses, weighted.
   fridgeClearWeight: 0.15,
+  // Rescue boost: per at-risk (urgent/useSoon) ingredient a recipe uses,
+  // capped so a rescue never outranks a clearly better coverage match.
+  rescuePerItem: 0.06,
+  rescueCap: 0.18,
+};
+
+// Freshness thresholds (days left). Tunable; keep conservative.
+export const FRESH = {
+  urgentDays: 1,          // <= this -> "urgent"
+  useSoonDays: 2.5,       // <= this -> "useSoon"
+  stillGoodExtendDays: 2, // "still good" pushes expiry out this much
 };
 
 export const TIMING = {

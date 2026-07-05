@@ -149,6 +149,52 @@ export const INGREDIENTS = [
   I('tortilla-chips', 'Tortilla chips', 'other', ['corn chips', 'nachos']),
 ];
 
+// ---- Freshness seed -----------------------------------------------------
+// Default shelf life in days per ingredient. null = staple / non-perishable
+// (canned, dried, frozen, condiments): no expiry tracking, no expiry UI.
+// Unlisted ingredients fall back to their category default below.
+const CATEGORY_SHELF_LIFE = {
+  protein: 3, veg: 7, dairy: 14, grain: null, pantry: null, spice: null, other: null,
+};
+
+const SHELF_LIFE_OVERRIDES = {
+  // proteins: fish faster than meat; cured lasts longer; canned is staple
+  salmon: 2, 'white-fish': 2, shrimp: 2,
+  bacon: 14, ham: 7, sausage: 7, tofu: 7, 'canned-tuna': null,
+  // veg & fruit: leafy/berries fast, roots and citrus slow, frozen is staple
+  spinach: 4, kale: 5, lettuce: 5, basil: 4, cilantro: 4, parsley: 5,
+  scallion: 6, berries: 3, mushrooms: 5, avocado: 4, banana: 5,
+  'bok-choy': 5, corn: 5, 'cherry-tomatoes': 5, tomato: 6,
+  'bell-pepper': 10, cauliflower: 10, 'fresh-chili': 10,
+  cabbage: 14, celery: 14,
+  ginger: 21, 'sweet-potato': 21, carrot: 21, lemon: 21, lime: 21, apple: 21,
+  onion: 30, garlic: 30, potato: 30,
+  'frozen-peas': null,
+  // dairy & eggs
+  milk: 7, 'heavy-cream': 7, mozzarella: 7,
+  eggs: 21, cheddar: 30, butter: 60, parmesan: 60,
+  // grains: fresh bread is the exception
+  bread: 5, tortillas: 14,
+  // other
+  kimchi: 30,
+};
+
+const tierFor = (days) => {
+  if (days == null) return 'staple';
+  if (days <= 4) return 'highly_perishable';
+  if (days <= 10) return 'perishable';
+  return 'long_life';
+};
+
+for (const ing of INGREDIENTS) {
+  const days = ing.isStaple ? null
+    : (SHELF_LIFE_OVERRIDES[ing.id] !== undefined
+        ? SHELF_LIFE_OVERRIDES[ing.id]
+        : CATEGORY_SHELF_LIFE[ing.category]);
+  ing.defaultShelfLifeDays = days;
+  ing.freshnessTier = tierFor(days);
+}
+
 // Recipe helper. Staples (salt, pepper, oil, sugar) are never listed in
 // required: with assumeStaples on they are auto-owned, so listing them
 // would only pad the coverage math.

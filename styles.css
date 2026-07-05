@@ -400,6 +400,24 @@ button { font-family: inherit; cursor: pointer; }
 .cat[data-state="kiss"] .cat-hearts { display: block; }
 .cat[data-state="kiss"] .cat-kiss-paw { display: block; }
 
+/* pantry-mood states: ambient and gentle, never alarming */
+.cat[data-state="curious"] .cat-head { transform: rotate(6deg); transform-origin: 50% 90%; }
+.cat[data-state="curious"] .cat-ear-l { transform: rotate(7deg); transform-origin: 80% 100%; transform-box: fill-box; }
+
+.cat[data-state="worried"] .cat-head { transform: rotate(-3deg) translateX(3px); transform-origin: 50% 90%; }
+.cat[data-state="worried"] .cat-ear-l { transform: rotate(-6deg); transform-origin: 80% 100%; transform-box: fill-box; }
+.cat[data-state="worried"] .cat-ear-r { transform: rotate(6deg); transform-origin: 20% 100%; transform-box: fill-box; }
+.cat[data-state="worried"] .cat-mouth-happy { display: none; }
+.cat[data-state="worried"] .cat-mouth-flat { display: block; }
+
+.cat[data-state="sad"] .cat-head { transform: translateY(6px) rotate(-4deg); transform-origin: 50% 90%; }
+.cat[data-state="sad"] .cat-body { transform: translateY(3px); }
+.cat[data-state="sad"] .cat-ear-l { transform: rotate(-10deg); transform-origin: 80% 100%; transform-box: fill-box; }
+.cat[data-state="sad"] .cat-ear-r { transform: rotate(10deg); transform-origin: 20% 100%; transform-box: fill-box; }
+.cat[data-state="sad"] .cat-mouth-happy { display: none; }
+.cat[data-state="sad"] .cat-mouth-flat { display: block; }
+.cat[data-state="sad"] .cat-blush { opacity: 0.3; }
+
 @keyframes blink {
   0%, 91%, 100% { transform: scaleY(1); }
   93%, 95% { transform: scaleY(0.08); }
@@ -1114,6 +1132,122 @@ button { font-family: inherit; cursor: pointer; }
 .log-remove:hover { color: var(--accent); }
 
 .log-day { margin-bottom: 6px; }
+
+/* ---------- freshness: chip hints, fridge check, adjust menu ---------- */
+
+.chip-days {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.8;
+  padding: 2px 6px;
+  margin: -2px -4px -2px 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.chip-days.s-urgent, .chip-days.s-expired { background: rgba(255, 255, 255, 0.32); opacity: 1; }
+
+.home-stats {
+  font-family: var(--font-script);
+  font-size: 18px;
+  color: var(--muted);
+  margin: -16px 0 22px;
+}
+
+.fridge-check {
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-radius: 20px;
+  padding: 16px 16px 8px;
+  margin-top: 20px;
+}
+
+.fridge-check .section-label { margin: 0 0 12px; }
+
+.check-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 0 12px;
+}
+
+.check-row + .check-row { border-top: 1.5px solid var(--line); padding-top: 12px; }
+
+.check-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 110px;
+}
+
+.check-info strong {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14.5px;
+}
+
+.check-status { font-size: 12.5px; color: var(--muted); }
+.check-status.s-urgent, .check-status.s-expired { color: var(--accent); font-weight: 600; }
+
+.check-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+
+.check-btn {
+  border: 1.5px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.check-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.check-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.check-btn.primary:hover { background: var(--accent-deep); color: var(--accent-ink); }
+
+.adjust-menu {
+  position: absolute;
+  z-index: 60;
+  background: var(--surface);
+  border: 1.5px solid var(--line-strong);
+  border-radius: 16px;
+  padding: 6px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  min-width: 165px;
+}
+
+.adjust-menu button {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 9px 12px;
+  border-radius: 10px;
+}
+
+.adjust-menu button:hover { background: var(--accent-soft); color: var(--accent); }
+
+.card-rescue {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
 /* ---------- welcome (first run) ---------- */
 

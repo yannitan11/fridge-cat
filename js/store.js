@@ -1,9 +1,28 @@
-// Selection state + custom ingredients + persistence. Tiny pub/sub so
-// views re-render on change (same pattern as Design Idea Tracker).
+// Pantry + selection state, custom ingredients, kitchen log, favorites,
+// shopping list, freshness loop. Tiny pub/sub so views re-render on change.
+//
+// The pantry is the source of truth: PantryItem = {ingredientId, addedAt,
+// shelfLifeDays}. Expiry and status are derived at read time (freshness.js).
+// selectedIngredientIds is kept in sync for the matching code.
 import { STORAGE_KEY } from './config.js';
-import { resolveAlias, normalize } from './match.js';
+import { resolveAlias, normalize, ingredientById } from './match.js';
+import { DAY_MS, itemStatus } from './freshness.js';
+
+const CUSTOM_SHELF_LIFE_DAYS = 7; // user-added items: assume perishable-ish
+
+function shelfLifeFor(ingredientId) {
+  if (ingredientId.startsWith('custom-')) return CUSTOM_SHELF_LIFE_DAYS;
+  return ingredientById.get(ingredientId)?.defaultShelfLifeDays ?? null;
+}
+
+const newItem = (ingredientId) => ({
+  ingredientId,
+  addedAt: Date.now(),
+  shelfLifeDays: shelfLifeFor(ingredientId),
+});
 
 const defaults = () => ({
+  pantry: [],              // PantryItem[]
   selectedIngredientIds: [],
   customIngredients: [],   // {id, name} added by the user, category 'other'
   assumeStaples: true,
@@ -11,6 +30,9 @@ const defaults = () => ({
   favoriteIds: [],         // hearted recipe ids
   shopping: [],            // {id (ingredient id), name, done}
   onboarded: false,        // welcome slides seen
+  rescuedCount: 0,         // ingredients cooked/eaten while at risk
+  streakBrokeAt: null,     // last time an expired item was tossed
+  firstRunAt: Date.now(),
 });
 
 let state = load();
@@ -20,7 +42,12 @@ function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaults();
-    return { ...defaults(), ...JSON.parse(raw) };
+    const parsed = { ...defaults(), ...JSON.parse(raw) };
+    // migrate pre-freshness selections into stamped pantry items
+    if (parsed.pantry.length === 0 && parsed.selectedIngredientIds.length > 0) {
+      parsed.pantry = parsed.selectedIngredientIds.map(newItem);
+    }
+    return parsed;
   } catch {
     return defaults();
   }
@@ -28,6 +55,10 @@ function load() {
 
 function persist() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+}
+
+function syncSelection(next) {
+  return { ...next, selectedIngredientIds: next.pantry.map((p) => p.ingredientId) };
 }
 
 function emit() {
@@ -39,16 +70,98 @@ export const store = {
   get: () => state,
   subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
+  itemFor(ingredientId) {
+    return state.pantry.find((p) => p.ingredientId === ingredientId) ?? null;
+  },
+
   toggle(id) {
-    const set = new Set(state.selectedIngredientIds);
-    set.has(id) ? set.delete(id) : set.add(id);
-    state = { ...state, selectedIngredientIds: [...set] };
+    const has = state.pantry.some((p) => p.ingredientId === id);
+    state = syncSelection({
+      ...state,
+      pantry: has
+        ? state.pantry.filter((p) => p.ingredientId !== id)
+        : [...state.pantry, newItem(id)],
+    });
     emit();
   },
 
   clearSelection() {
-    state = { ...state, selectedIngredientIds: [] };
+    state = syncSelection({ ...state, pantry: [] });
     emit();
+  },
+
+  // Quick adjust, no date picker: 'fresh' (bought today), 'aged' (a few
+  // days in), 'soon' (going bad: ~1 day left).
+  adjustItem(ingredientId, mode) {
+    state = syncSelection({
+      ...state,
+      pantry: state.pantry.map((p) => {
+        if (p.ingredientId !== ingredientId || p.shelfLifeDays == null) return p;
+        const now = Date.now();
+        let addedAt = now;
+        if (mode === 'aged') addedAt = now - p.shelfLifeDays * 0.6 * DAY_MS;
+        if (mode === 'soon') addedAt = now - (p.shelfLifeDays - 1) * DAY_MS;
+        return { ...p, addedAt };
+      }),
+    });
+    emit();
+  },
+
+  // One-tap resolves. 'used' = cooked or eaten (a rescue if it was at
+  // risk); 'extend' = still good; 'toss' = gone (breaks the fresh streak
+  // only if it was already expired). No judgment either way.
+  resolveItem(ingredientId, action) {
+    const item = this.itemFor(ingredientId);
+    if (!item) return { rescued: false };
+    const status = itemStatus(item);
+    if (action === 'extend') {
+      state = syncSelection({
+        ...state,
+        pantry: state.pantry.map((p) => (p.ingredientId === ingredientId
+          ? { ...p, addedAt: p.addedAt + 2 * DAY_MS }
+          : p)),
+      });
+      emit();
+      return { rescued: false };
+    }
+    const rescued = action === 'used' && (status === 'urgent' || status === 'useSoon');
+    state = syncSelection({
+      ...state,
+      pantry: state.pantry.filter((p) => p.ingredientId !== ingredientId),
+      rescuedCount: state.rescuedCount + (rescued ? 1 : 0),
+      streakBrokeAt: action === 'toss' && status === 'expired' ? Date.now() : state.streakBrokeAt,
+    });
+    emit();
+    return { rescued };
+  },
+
+  // Cooking a recipe consumes its perishable required items from the
+  // pantry; the ones that were at risk count as rescues.
+  consumeForRecipe(requiredIds) {
+    const req = new Set(requiredIds);
+    const consumed = [];
+    let rescues = 0;
+    for (const p of state.pantry) {
+      if (!req.has(p.ingredientId) || p.shelfLifeDays == null) continue;
+      const s = itemStatus(p);
+      if (s === 'urgent' || s === 'useSoon') rescues += 1;
+      consumed.push(p.ingredientId);
+    }
+    if (consumed.length > 0) {
+      const gone = new Set(consumed);
+      state = syncSelection({
+        ...state,
+        pantry: state.pantry.filter((p) => !gone.has(p.ingredientId)),
+        rescuedCount: state.rescuedCount + rescues,
+      });
+      emit();
+    }
+    return { consumed, rescues };
+  },
+
+  streakDays(now = Date.now()) {
+    const from = state.streakBrokeAt ?? state.firstRunAt;
+    return Math.max(0, Math.floor((now - from) / DAY_MS));
   },
 
   // Add a custom ingredient from free text. If it aliases to a seeded
@@ -65,19 +178,19 @@ export const store = {
     if (!state.customIngredients.some((c) => c.id === id)) {
       state = { ...state, customIngredients: [...state.customIngredients, { id, name }] };
     }
-    if (!state.selectedIngredientIds.includes(id)) {
-      state = { ...state, selectedIngredientIds: [...state.selectedIngredientIds, id] };
+    if (!state.pantry.some((p) => p.ingredientId === id)) {
+      state = syncSelection({ ...state, pantry: [...state.pantry, newItem(id)] });
     }
     emit();
     return id;
   },
 
   removeCustom(id) {
-    state = {
+    state = syncSelection({
       ...state,
       customIngredients: state.customIngredients.filter((c) => c.id !== id),
-      selectedIngredientIds: state.selectedIngredientIds.filter((s) => s !== id),
-    };
+      pantry: state.pantry.filter((p) => p.ingredientId !== id),
+    });
     emit();
   },
 

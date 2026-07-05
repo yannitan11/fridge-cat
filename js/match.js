@@ -25,10 +25,12 @@ export const STAPLE_IDS = INGREDIENTS.filter((i) => i.isStaple).map((i) => i.id)
 
 // ---- Scoring ----------------------------------------------------------
 
-// Returns [{recipe, coverage, ownedRequired, missing, usedSelected, status}]
-// sorted best-first. `selectedIds` are canonical ids the user tapped
-// (may include custom-* ids, which never match seeded recipes).
-export function matchRecipes(selectedIds, { assumeStaples = true } = {}) {
+// Returns [{recipe, coverage, ownedRequired, missing, usedSelected, status,
+// rescueIds}] sorted best-first. `selectedIds` are canonical ids the user
+// tapped (may include custom-* ids, which never match seeded recipes).
+// `atRiskIds` (urgent/useSoon pantry items) boost recipes that use them:
+// coverage first, then rescue value, then fewest missing, then speed.
+export function matchRecipes(selectedIds, { assumeStaples = true, atRiskIds = new Set() } = {}) {
   const owned = new Set(selectedIds);
   if (assumeStaples) for (const id of STAPLE_IDS) owned.add(id);
   const selected = new Set(selectedIds);
@@ -45,18 +47,23 @@ export function matchRecipes(selectedIds, { assumeStaples = true } = {}) {
     const usedSelected = usable.filter((id) => selected.has(id)).length;
     const clearRatio = selected.size === 0 ? 0 : usedSelected / selected.size;
 
-    const score = coverage + clearRatio * MATCH.fridgeClearWeight;
+    // Rescue value: at-risk items this recipe would put to work.
+    const rescueIds = usable.filter((id) => atRiskIds.has(id) && selected.has(id));
+    const rescueBoost = Math.min(rescueIds.length * MATCH.rescuePerItem, MATCH.rescueCap);
+
+    const score = coverage + clearRatio * MATCH.fridgeClearWeight + rescueBoost;
 
     let status = 'far';
     if (missing.length === 0) status = 'ready';
     else if (missing.length <= MATCH.almostMissingMax && coverage >= MATCH.minCoverage) status = 'almost';
     else if (coverage >= MATCH.minCoverage) status = 'close';
 
-    return { recipe, coverage, ownedRequired, missing, usedSelected, score, status };
+    return { recipe, coverage, ownedRequired, missing, usedSelected, rescueIds, score, status };
   });
 
   scored.sort((a, b) =>
     b.score - a.score ||
+    b.rescueIds.length - a.rescueIds.length ||
     a.missing.length - b.missing.length ||
     b.usedSelected - a.usedSelected ||
     a.recipe.timeMinutes - b.recipe.timeMinutes
