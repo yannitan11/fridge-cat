@@ -1,0 +1,9 @@
+{
+  "appId": "com.yannitan.fridgecat",
+  "appName": "Fridge Cat",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#f3eddd"
+  }
+}

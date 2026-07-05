@@ -16,7 +16,7 @@ export const MATCH = {
 };
 
 export const TIMING = {
-  sniffMs: 1400,       // sniff animation before results reveal
+  sniffMs: 2100,       // fridge-search loading scene before results reveal
   reactionMs: 1500,    // found-it / shrug / chef's-kiss reactions
   idleFidgetMinMs: 6000,   // random grooming / tail flicks while idle
   idleFidgetMaxMs: 14000,

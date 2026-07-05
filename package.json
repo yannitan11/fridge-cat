@@ -1,0 +1,16 @@
+{
+  "name": "fridge-cat",
+  "version": "1.0.0",
+  "description": "A cat that sniffs out what you can cook from your fridge.",
+  "private": true,
+  "scripts": {
+    "build:www": "rm -rf www && mkdir -p www && cp index.html styles.css www/ && cp -R js www/js",
+    "ios:sync": "npm run build:www && npx cap sync ios",
+    "ios:open": "npx cap open ios"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/ios": "^8.4.1"
+  }
+}

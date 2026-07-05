@@ -7,7 +7,7 @@ const defaults = () => ({
   selectedIngredientIds: [],
   customIngredients: [],   // {id, name} added by the user, category 'other'
   assumeStaples: true,
-  madeRecipeIds: [],       // history of "Made it" taps, newest first
+  makes: [],               // kitchen log: {id, recipeId, date ISO, hasPhoto}, newest first
 });
 
 let state = load();
@@ -78,8 +78,29 @@ export const store = {
     emit();
   },
 
+  // Log a cooked meal. Returns the new entry so the UI can attach a photo.
   markMade(recipeId) {
-    state = { ...state, madeRecipeIds: [recipeId, ...state.madeRecipeIds].slice(0, 50) };
+    const entry = {
+      id: 'make-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      recipeId,
+      date: new Date().toISOString(),
+      hasPhoto: false,
+    };
+    state = { ...state, makes: [entry, ...state.makes].slice(0, 500) };
+    emit();
+    return entry;
+  },
+
+  setMakePhoto(makeId, hasPhoto) {
+    state = {
+      ...state,
+      makes: state.makes.map((m) => (m.id === makeId ? { ...m, hasPhoto } : m)),
+    };
+    emit();
+  },
+
+  removeMake(makeId) {
+    state = { ...state, makes: state.makes.filter((m) => m.id !== makeId) };
     emit();
   },
 };
