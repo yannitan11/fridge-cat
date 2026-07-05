@@ -605,16 +605,53 @@ button { font-family: inherit; cursor: pointer; }
 /* results filters */
 .results-filters {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
   margin: 2px 0 18px;
 }
 
-.filter-chip {
-  padding: 7px 13px;
-  font-size: 13px;
+.select-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1.5px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 9px 14px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
+
+.select-pill:hover { border-color: var(--accent); }
+
+.select-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.select-pill select {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
+  outline: none;
+  padding-right: 2px;
+}
+
+.select-pill select option {
+  color: initial;
+  background: initial;
+  font-weight: 400;
+}
+
+.select-chevron { flex: none; opacity: 0.7; }
 
 /* reveal choreography */
 @media (prefers-reduced-motion: no-preference) {

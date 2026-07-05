@@ -349,8 +349,8 @@ const TIME_FILTERS = [
 ];
 const KCAL_FILTERS = [
   { id: 'any', label: 'Any kcal', max: Infinity },
-  { id: 'k400', label: 'Under 400', max: 400 },
-  { id: 'k600', label: 'Under 600', max: 600 },
+  { id: 'k400', label: 'Under 400 kcal', max: 400 },
+  { id: 'k600', label: 'Under 600 kcal', max: 600 },
 ];
 let timeFilter = 'any';
 let kcalFilter = 'any';
@@ -438,31 +438,37 @@ function revealResults(cat, react) {
       : 'Here is the closest thing to dinner.';
   }
 
-  const filterPill = (f, group, active) => `
-    <button class="chip filter-chip" data-${group}="${f.id}" aria-pressed="${f.id === active}">${f.label}</button>`;
+  const dropdown = (id, icon, filters, active) => `
+    <label class="select-pill ${active !== 'any' ? 'active' : ''}">
+      ${icon}
+      <select id="${id}" aria-label="${id === 'filter-time' ? 'Filter by time' : 'Filter by calories'}">
+        ${filters.map((f) => `<option value="${f.id}" ${f.id === active ? 'selected' : ''}>${f.label}</option>`).join('')}
+      </select>
+      <svg class="select-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="m2.5 4.5 3.5 3.5 3.5-3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </label>`;
 
   list.innerHTML = `
     <div class="results-filters">
-      <div class="chip-grid">${TIME_FILTERS.map((f) => filterPill(f, 'time', timeFilter)).join('')}</div>
-      <div class="chip-grid">${KCAL_FILTERS.map((f) => filterPill(f, 'kcal', kcalFilter)).join('')}</div>
+      ${dropdown('filter-time', ICONS.clock, TIME_FILTERS, timeFilter)}
+      ${dropdown('filter-kcal', ICONS.bolt, KCAL_FILTERS, kcalFilter)}
     </div>
     ${picks.map(cardHtml).join('')}
     <div class="results-actions">
       <button class="sniff-again" id="sniff-again">${ICONS.nose} Sniff again</button>
     </div>`;
 
-  list.querySelectorAll('[data-time]').forEach((btn) =>
-    btn.addEventListener('click', () => {
-      timeFilter = btn.dataset.time;
-      sniffOffset = 0;
-      revealResults(cat, false);
-    }));
-  list.querySelectorAll('[data-kcal]').forEach((btn) =>
-    btn.addEventListener('click', () => {
-      kcalFilter = btn.dataset.kcal;
-      sniffOffset = 0;
-      revealResults(cat, false);
-    }));
+  document.getElementById('filter-time').addEventListener('change', (e) => {
+    timeFilter = e.target.value;
+    sniffOffset = 0;
+    revealResults(cat, false);
+  });
+  document.getElementById('filter-kcal').addEventListener('change', (e) => {
+    kcalFilter = e.target.value;
+    sniffOffset = 0;
+    revealResults(cat, false);
+  });
 
   document.getElementById('sniff-again').addEventListener('click', () => {
     sniffOffset += MATCH.resultsPerSniff;
